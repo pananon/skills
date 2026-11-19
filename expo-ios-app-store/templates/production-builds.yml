@@ -1,0 +1,58 @@
+name: Production builds
+run_name: Production ${{ inputs.platform }}
+
+# Manual only: no push / pull_request trigger, so pushes and merges never build.
+# Check the build quota first, then run one platform at a time:
+#   npx eas-cli workflow:run .eas/workflows/production-builds.yml -F platform=ios
+#   npx eas-cli workflow:run .eas/workflows/production-builds.yml -F platform=android
+# The iOS and Android chains are independent: one failing never blocks the other.
+# Job ids use underscores so `needs.<id>.outputs` expressions parse.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        description: Which platform to build and submit
+        options:
+          - ios
+          - android
+          - all
+        required: true
+
+jobs:
+  build_ios:
+    name: Build iOS
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+    type: build
+    environment: production
+    params:
+      platform: ios
+      profile: production
+
+  submit_ios:
+    name: Submit iOS to App Store Connect
+    needs: [build_ios]
+    type: submit
+    environment: production
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
+
+  build_android:
+    name: Build Android
+    if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+    type: build
+    environment: production
+    params:
+      platform: android
+      profile: production
+
+  submit_android:
+    name: Submit Android to Google Play
+    needs: [build_android]
+    type: submit
+    environment: production
+    params:
+      build_id: ${{ needs.build_android.outputs.build_id }}
+      profile: production
